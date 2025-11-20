@@ -1,0 +1,55 @@
+# Versão sem Traefik - use Nginx diretamente no host
+# Mais simples se você já tem Nginx ou prefere não usar Traefik
+
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vidracaria-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: vidracaria_parana
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vidracaria-parana
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/vidracaria_parana
+    volumes:
+      # Persistir uploads
+      - ./data/uploads:/app/uploads
+      # Persistir uploads do cliente
+      - ./data/client-uploads:/app/client/public/uploads
+    # Não expõe portas externamente - apenas para Nginx no host
+    expose:
+      - "5000"
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge
+
